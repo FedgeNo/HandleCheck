@@ -139,3 +139,8 @@ WhatsMyName stays under CC BY-SA 4.0.
 ```
 
 The browser tests drive each installed browser against a local server.
+
+## License
+
+MIT, see [LICENSE](LICENSE). Site data merged from WhatsMyName isn't part of this
+repository and stays under CC BY-SA 4.0.
