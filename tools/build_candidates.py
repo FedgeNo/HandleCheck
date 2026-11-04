@@ -29,6 +29,7 @@ DATING_HOSTS = {
     "happn.com", "hinge.co", "match.com", "okcupid.com", "pof.com", "plentyoffish.com",
     "tinder.com", "zoosk.com",
 }
+REDIRECT_CODES = {301, 302, 303, 307, 308}
 CATEGORY_MAP = {"coding": "dev", "tech": "dev", "video": "media", "music": "media", "images": "media"}
 API_LIKE = re.compile(r"(^|[./])api[./]|/api/|\.json|\.xml|/v\d+/|graphql", re.IGNORECASE)
 EXCLUDED_MAIGRET_TAGS = {"hacking"}
@@ -100,6 +101,8 @@ def from_wmn(site: dict) -> dict:
     else:
         entry["profile_url"] = check
     if not entry.get("manual"):
+        if site.get("m_code") in REDIRECT_CODES:
+            entry["redirect_means_missing"] = True
         if site.get("e_string"):
             entry["found_regex"] = literal(site["e_string"])
         if site.get("m_string"):
@@ -118,6 +121,8 @@ def from_sherlock(name: str, site: dict) -> dict:
         # A probe that is just another web page still goes through the browser.
         if site.get("urlProbe") and API_LIKE.search(site["urlProbe"]):
             entry["probe_url"] = https(site["urlProbe"]).replace("{}", "{username}")
+        if site.get("errorType") == "response_url":
+            entry["redirect_means_missing"] = True
         if site.get("errorType") == "message" and site.get("errorMsg"):
             messages = site["errorMsg"]
             messages = [messages] if isinstance(messages, str) else messages
@@ -155,6 +160,8 @@ def from_maigret(name: str, site: dict) -> dict | None:
         return finish(entry, [site.get("usernameClaimed", "")])
     if site.get("urlProbe") and API_LIKE.search(site["urlProbe"]):
         entry["probe_url"] = https(site["urlProbe"])
+    if site.get("checkType") == "response_url":
+        entry["redirect_means_missing"] = True
     if site.get("checkType") == "message":
         if site.get("presenseStrs"):
             entry["found_regex"] = "|".join(literal(s) for s in site["presenseStrs"])
@@ -185,6 +192,7 @@ def engine_api_rule(name: str, site: dict, page_rule: dict) -> dict | None:
     entry = {**page_rule, "name": name, "probe_url": base + path, "engine_api": True}
     entry.pop("found_regex", None)
     entry.pop("not_found_regex", None)
+    entry.pop("redirect_means_missing", None)
     if found:
         entry["found_regex"] = found
     if missing:

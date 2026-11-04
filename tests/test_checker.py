@@ -289,3 +289,40 @@ def test_relative_xdg_paths_are_ignored(monkeypatch, tmp_path):
     monkeypatch.setenv("XDG_DATA_DIRS", "relative:/abs")
     assert paths.data_home() == tmp_path / ".local" / "share" / "handlecheck"
     assert paths.data_dirs() == [Path("/abs/handlecheck")]
+
+
+def test_forum_redirect_to_name_with_id_counts_as_found():
+    assert status_of(200, final="https://example.com/members/alice.777/") is Status.FOUND
+    assert status_of(200, final="https://example.com/members/alice-777/") is Status.FOUND
+
+
+def test_name_with_other_text_still_does_not_count():
+    assert status_of(200, final="https://example.com/members/alice.html") is Status.UNKNOWN
+    assert status_of(200, final="https://example.com/alice.777.x/") is Status.UNKNOWN
+
+
+def test_documented_redirect_means_missing():
+    assert status_of(200, final="https://example.com/", redirect_means_missing=True) is Status.NOT_FOUND
+    assert status_of(200, final="https://example.com/") is Status.UNKNOWN
+
+
+def test_login_redirect_is_never_taken_as_missing():
+    for path in ("/login", "/users/sign_in", "/captcha", "/account/signin"):
+        final = f"https://example.com{path}"
+        assert status_of(200, final=final, redirect_means_missing=True) is Status.UNKNOWN
+
+
+@pytest.mark.parametrize(
+    "url,could",
+    [
+        ("https://x.example/{username}", True),
+        ("https://x.example/@{username}", True),
+        ("https://{username}.example.com/", True),
+        ("https://x.example/index/8-0-{username}", False),
+        ("https://x.example/members/?username={username}", False),
+    ],
+)
+def test_reserved_names_only_apply_where_they_could_be_a_page(url, could):
+    rule = Site(name="X", category="misc", profile_url=url, known_user="k", username_pattern=r"^[a-z]+$")
+    result = checker_module._precheck(rule, "admin")
+    assert (result is not None and result.reason == checker_module.REASON_RESERVED) is could

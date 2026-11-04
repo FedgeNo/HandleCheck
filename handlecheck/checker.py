@@ -68,6 +68,7 @@ DEFAULT_SITE_PATTERN = r"^[A-Za-z0-9._-]+$"
 # Bot-challenge pages are often served with a 200, so they need spotting by
 # content. Deliberately narrow: Cloudflare also injects scripts into normal
 # pages, and those must not count as a block.
+LOGIN_PATH_RE = re.compile(r"log-?in|sign-?in|sign_in|auth|captcha|challenge|checkpoint|verify", re.IGNORECASE)
 CHALLENGE_RE = re.compile(
     r"<title>\s*(just a moment|attention required)"
     r"|cf-browser-verification"
@@ -100,6 +101,8 @@ class Site:
     not_found_regex: str | None = None
     # The service legitimately redirects to a URL without the name in it.
     allow_redirect: bool = False
+    # The service sends missing accounts elsewhere, as its source list documents.
+    redirect_means_missing: bool = False
     manual: bool = False
     # Plain page load only: no API, no other browser, no adjustments. For sites
     # such as dating services, where only what's openly public should be read.
@@ -157,10 +160,24 @@ def _url_names_user(url: str, username: str) -> bool:
 
     Substring matching is not enough: the name "log" must not pass on a
     redirect to /login, and query strings prove nothing (/search?q=name).
+    Forum software often adds a numeric ID, as in /members/john.777/.
     """
     parts = urlsplit(url)
     pieces = [s.lstrip("@~") for s in parts.path.split("/")] + (parts.hostname or "").split(".")
-    return username.lower() in (piece.lower() for piece in pieces)
+    named = re.compile(re.escape(username) + r"(?:[.-]\d+)?", re.IGNORECASE)
+    return any(named.fullmatch(piece) for piece in pieces)
+
+
+def _name_could_be_a_page(site: Site) -> bool:
+    """True if the name fills a whole path segment or host label of the URL.
+
+    Only then can a name like "admin" land on one of the site's own pages.
+    /index/8-0-admin and /members/?username=admin can't.
+    """
+    placeholder = "handlecheckname"
+    parts = urlsplit(site.profile_url.replace("{username}", placeholder))
+    pieces = [s.lstrip("@~") for s in parts.path.split("/")] + (parts.hostname or "").split(".")
+    return placeholder in pieces
 
 
 def classify(
@@ -188,6 +205,9 @@ def classify(
         and not site.allow_redirect
         and not _url_names_user(final_url, username)
     ):
+        # A login or challenge page is never the documented "no such account".
+        if site.redirect_means_missing and not LOGIN_PATH_RE.search(urlsplit(final_url).path):
+            return Status.NOT_FOUND, ""
         return Status.UNKNOWN, f"redirected to {urlsplit(final_url).path or '/'}"
 
     if site.found_regex and not _pattern(site.found_regex, username).search(body):
@@ -284,7 +304,7 @@ def _precheck(site: Site, username: str) -> Result | None:
         return Result(site, username, Status.INVALID, url, "name not allowed on this service")
     if site.manual:
         return Result(site, username, Status.MANUAL, url, "cannot be checked reliably")
-    if site.uses_browser and username.lower() in RESERVED_NAMES:
+    if site.uses_browser and username.lower() in RESERVED_NAMES and _name_could_be_a_page(site):
         return Result(site, username, Status.UNKNOWN, url, REASON_RESERVED)
     return None
 

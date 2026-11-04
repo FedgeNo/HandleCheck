@@ -18,7 +18,7 @@ from handlecheck.checker import DEAD_RE as DEAD
 
 RULE_FIELDS = (
     "name", "category", "profile_url", "probe_url", "known_user", "username_pattern",
-    "found_regex", "not_found_regex", "public_page_only",
+    "found_regex", "not_found_regex", "public_page_only", "redirect_means_missing",
 )
 
 
@@ -28,7 +28,7 @@ def to_site(rules: dict, known_user: str | None = None, manual: bool = False) ->
         site["known_user"] = known_user
     if manual:
         site["manual"] = True
-        for field in ("probe_url", "found_regex", "not_found_regex"):
+        for field in ("probe_url", "found_regex", "not_found_regex", "redirect_means_missing"):
             site.pop(field, None)
     return site
 
