@@ -9,7 +9,7 @@ import os
 import signal
 import sys
 
-from . import __version__
+from . import __version__, update
 from .checker import (
     DEFAULT_TABS,
     Checker,
@@ -200,8 +200,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--verify", action="store_true", help="test that each service's detection still works"
     )
+    parser.add_argument("--update", action="store_true", help="update to the latest version and exit")
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     args = parser.parse_args(argv)
+
+    # Before anything else, so that a broken site list can still be updated away.
+    if args.update:
+        if args.usernames:
+            parser.error("--update doesn't take usernames")
+        try:
+            return update.update()
+        except KeyboardInterrupt:
+            return 130
 
     if args.timeout <= 0:
         parser.error("--timeout must be greater than 0")

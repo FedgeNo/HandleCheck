@@ -6,7 +6,7 @@
 #   $XDG_DATA_HOME/handlecheck        data, by default ~/.local/share/handlecheck
 #
 # Run as root, it also creates the locked account that browsers run under.
-# To upgrade, run the copy in the source directory again.
+# To upgrade, run handlecheck --update.
 set -euo pipefail
 umask 022
 
@@ -65,10 +65,34 @@ if ! command -v chromium >/dev/null && ! command -v chromium-browser >/dev/null 
     ! command -v google-chrome >/dev/null && ! command -v firefox >/dev/null; then
     echo "warning: no browser found; only services with an API can be checked" >&2
 fi
-case ":$PATH:" in
-    *":$BIN:"*) ;;
-    *) echo "warning: add $BIN to your PATH" >&2 ;;
-esac
 "$BIN/handlecheck" --version
 echo "Code: $APP"
 echo "Data: $DATA"
+case ":$PATH:" in
+    *":$BIN:"*) ;;
+    *)
+        echo
+        echo "$BIN is not on your PATH, so the handlecheck command won't be found yet."
+        echo "To add it, run:"
+        echo
+        case "${SHELL##*/}" in
+            fish)
+                echo "    fish_add_path \$HOME/.local/bin"
+                ;;
+            zsh)
+                echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+                echo "    source ~/.zshrc"
+                ;;
+            bash)
+                echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+                echo "    source ~/.bashrc"
+                ;;
+            *)
+                echo "    echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.profile"
+                echo "    . ~/.profile"
+                ;;
+        esac
+        echo
+        echo "Until then, you can run it as $BIN/handlecheck"
+        ;;
+esac

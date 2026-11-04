@@ -20,8 +20,13 @@ checks to one browser.
 | Command | `~/.local/bin/handlecheck` |
 | Data | `$XDG_DATA_HOME/handlecheck`, by default `~/.local/share/handlecheck` |
 
-To upgrade, update the repository and run its `install.sh` again. A site list you
-calibrate is saved in the data directory, where it overrides the one in the code.
+To upgrade, run `handlecheck --update`. A git clone is pulled, and it stops without
+changing anything if you have local changes or your history has diverged. Any other
+install is replaced with a fresh download from GitHub, so edits to its code are lost.
+
+A site list you calibrate is saved in the data directory, where it overrides the one
+in the code. Updates don't touch it, so it won't pick up new sites until you rebuild
+or remove it.
 
 Run as root, the installer also creates a locked `handlecheck-browser` account,
 and handlecheck starts every browser under it. It won't start a browser as root if
@@ -40,6 +45,7 @@ handlecheck alice --browser firefox
 handlecheck alice --json
 handlecheck --list              # supported services
 handlecheck --verify            # test that detection still works
+handlecheck --update            # update to the latest version
 ```
 
 ## Reading the results
