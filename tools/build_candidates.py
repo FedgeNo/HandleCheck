@@ -3,8 +3,8 @@
 
 Usage: build_candidates.py WMN_JSON SHERLOCK_JSON MAIGRET_JSON OUTPUT_JSON
 
-Nothing here is trusted: a candidate only reaches sites.json by passing
-calibration. Hacking sites are left out, as are ones their lists mark as archived
+Nothing here is trusted yet: tools/merge_results.py decides what reaches
+sites.json from the results of tools/calibrate.py. Hacking sites are left out, as are ones their lists mark as archived
 or disabled. Adult sites are filed under the "adult" category. Dating sites are
 only tried as a plain page load, with no API and no adjustments, so only openly
 public profiles can pass, and that holds for a dating site that is also adult.

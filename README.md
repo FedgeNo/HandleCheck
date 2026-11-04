@@ -58,6 +58,10 @@ handlecheck --update            # update to the latest version
   unexpected page (the reason is shown), or the service is marked `manual` and
   gets no request. These never count as found or not found.
 - **Name not allowed**: the name breaks that service's naming rules.
+- **(untested rule)**: this match comes from a source list's rules, which couldn't
+  be tested because the site blocked the test. It's probably right, but less
+  certain than the others. The same rules can't report "no account", so that
+  shows as a link instead.
 
 Names like `login` that are also pages on a site are listed under "check these
 yourself" on browser-checked services, because the page would look like a
@@ -101,7 +105,9 @@ Services live in `handlecheck/sites.json`:
 | `allow_redirect` | The service redirects to a URL without the name in it |
 | `manual` | Send nothing, and link to it for checking by hand |
 | `public_page_only` | One plain page load, as for dating sites |
+| `redirect_means_missing` | The service sends missing accounts elsewhere. Login and challenge pages still count as inconclusive |
 | `calibrated` | Added by `tools/merge_results.py`, which replaces these on each run |
+| `unverified` | Rules from a source list that couldn't be tested. They can report a match, but "no account" becomes a link |
 
 Add a `found_regex` for any site that returns 200 for everything.
 
@@ -121,12 +127,14 @@ cd ~/.local/lib/handlecheck/source
 WORK=${XDG_DATA_HOME:-$HOME/.local/share}/handlecheck
 .venv/bin/python tools/build_candidates.py sources/whatsmyname/wmn-data.json sources/sherlock/data.json sources/maigret/data.json "$WORK/candidates.json"
 .venv/bin/python tools/calibrate.py "$WORK/candidates.json" "$WORK/results.jsonl"   # resumes if restarted
-.venv/bin/python tools/merge_results.py "$WORK/results.jsonl"
+.venv/bin/python tools/merge_results.py "$WORK/results.jsonl"   # or several, newest last
 ```
 
 Each site is tested with two made-up names and up to several likely ones: the
 sample accounts from all three lists, its own name, and common first names. It
-has to reject both fakes and find a likely name. Failures become links, and dead
+has to reject both fakes and find a likely name. If a site seems to have blocked
+the test, and its source list says what a real profile contains, those rules are
+used as they are and marked `unverified`. Other failures become links, and dead
 sites and dating sites without public profiles are dropped. Hacking sites are
 left out. Adult sites are checked like any other, under the `adult` category, so
 `-s adult` selects them. An adult site that is also a dating site follows the
@@ -149,4 +157,5 @@ The browser tests drive each installed browser against a local server.
 ## License
 
 The code is MIT, see [LICENSE](LICENSE). The lists in [sources/](sources/README.md)
-keep their own licenses.
+keep their own licenses. `handlecheck/sites.json` is built from those lists, including
+WhatsMyName, so it is under [CC BY-SA 4.0](sources/whatsmyname/LICENSE.md).

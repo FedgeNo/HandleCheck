@@ -11,4 +11,4 @@ and is not covered by this repository's MIT license.
 | [Maigret](https://github.com/soxoj/maigret) | [data.json](maigret/data.json) | [MIT](maigret/LICENSE) | Soxoj | [b8747b9](https://github.com/soxoj/maigret/commit/b8747b98820f4df9d1baf23235db7b2cb55d0198) |
 
 Anything derived from the WhatsMyName list, including candidates and site lists
-built from it, stays under CC BY-SA 4.0.
+built from it such as `handlecheck/sites.json`, stays under CC BY-SA 4.0.

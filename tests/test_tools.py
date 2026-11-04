@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 
 import blocked_list
 import calibrate
+import merge_results
 
 from handlecheck.checker import Result, Site, Status
 
@@ -90,3 +91,44 @@ def test_checks_wait_for_the_network():
 def test_real_block_with_network_up_is_kept():
     final, calls = run_guarded([True, True], [Status.UNKNOWN])
     assert final.status is Status.UNKNOWN and len(calls) == 1
+
+
+def failed(why, rules, **outcomes):
+    return {"rules": rules, "passed": False, "why": why, **outcomes}
+
+
+BOTH = {"name": "X", "category": "misc", "profile_url": "https://x/{username}", "known_user": "k", "found_regex": "a", "not_found_regex": "b"}
+STATUS_ONLY = {"name": "X", "category": "misc", "profile_url": "https://x/{username}", "known_user": "k"}
+REFUSED = {"fakes": {"f": ["unknown", "blocked (HTTP 403)", "chromium"]}}
+
+
+def test_blocked_service_with_found_text_is_used_but_unverified():
+    outcome, site = merge_results.decide([row(failed("fake: blocked (HTTP 403)", BOTH, **REFUSED))])
+    assert outcome == "used from the list, untested"
+    assert site["unverified"] and site["found_regex"] == "a" and not site.get("manual")
+
+
+def test_blocked_service_without_found_text_stays_a_link():
+    outcome, site = merge_results.decide([row(failed("fake: blocked (HTTP 403)", STATUS_ONLY, **REFUSED))])
+    assert outcome == "link only" and site["manual"] and not site.get("unverified")
+
+
+def test_failure_that_is_not_a_block_is_not_trusted():
+    outcome, site = merge_results.decide([row(failed("accepts made-up names", BOTH))])
+    assert outcome == "link only" and site["manual"]
+
+
+def test_dead_service_is_dropped_even_with_found_text():
+    gone = {"fakes": {"f": ["unknown", "connection failed (ConnectError)", ""]}}
+    assert merge_results.decide([row(failed("fake: connection failed (ConnectError)", BOTH, **gone))]) == ("dead", None)
+
+
+def test_blocked_dating_site_needs_found_text():
+    dating = {**STATUS_ONLY, "public_page_only": True}
+    outcome, site = merge_results.decide([row(failed("fake: blocked (HTTP 403)", dating, **REFUSED))])
+    assert outcome == "dating, no public profiles" and site is None
+
+
+def test_link_needs_somewhere_to_put_the_name():
+    nowhere = {**STATUS_ONLY, "profile_url": "https://x/search.php", "manual": True}
+    assert merge_results.decide([row(failed("needs POST or headers", nowhere))]) == ("no way to link to a name", None)

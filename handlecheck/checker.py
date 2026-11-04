@@ -34,6 +34,7 @@ SETTLE_MAX = 5.0
 REASON_CHALLENGE = "bot challenge"
 REASON_UNRECOGNISED = "unrecognised page"
 REASON_RESERVED = "name is also a page on this site"
+REASON_UNVERIFIED = "shows no account, but this rule is untested"
 REASON_NO_TAB = "browser connection closed"
 # The site is gone or unreachable, which no other browser will change.
 DEAD_RE = re.compile(
@@ -109,6 +110,9 @@ class Site:
     public_page_only: bool = False
     # Added by tools/merge_results.py, which replaces these on each run.
     calibrated: bool = False
+    # Rules taken from a source list that couldn't be tested from where
+    # calibration ran. They can report a match, but "no account" stays a link.
+    unverified: bool = False
 
     @property
     def uses_browser(self) -> bool:
@@ -184,6 +188,15 @@ def classify(
     site: Site, username: str, status_code: int, final_url: str, requested_url: str, body: str
 ) -> tuple[Status, str]:
     """Decide what a response means. Anything ambiguous is UNKNOWN, never FOUND."""
+    status, reason = _classify(site, username, status_code, final_url, requested_url, body)
+    if status is Status.NOT_FOUND and site.unverified:
+        return Status.UNKNOWN, REASON_UNVERIFIED
+    return status, reason
+
+
+def _classify(
+    site: Site, username: str, status_code: int, final_url: str, requested_url: str, body: str
+) -> tuple[Status, str]:
     if CHALLENGE_RE.search(body):
         return Status.UNKNOWN, REASON_CHALLENGE
     if status_code == 429:
@@ -293,6 +306,7 @@ def worth_retrying(result: Result) -> bool:
     return (
         result.status is Status.UNKNOWN
         and not result.site.public_page_only
+        and result.reason != REASON_UNVERIFIED
         and not DEAD_RE.search(result.reason)
     )
 
@@ -565,4 +579,5 @@ class Verification:
 
     @property
     def ok(self) -> bool:
-        return self.known.status is Status.FOUND and self.random.status is Status.NOT_FOUND
+        rejected = self.random.status is Status.NOT_FOUND or self.random.reason == REASON_UNVERIFIED
+        return self.known.status is Status.FOUND and rejected

@@ -7,8 +7,8 @@ name = "handlecheck"
 version = "0.1.0"
 description = "Check which online services a username exists on"
 requires-python = ">=3.10"
-license = "MIT"
-license-files = ["LICENSE"]
+license = "MIT AND CC-BY-SA-4.0"
+license-files = ["LICENSE", "sources/whatsmyname/LICENSE.md"]
 dependencies = ["httpx>=0.27", "websockets>=15"]
 
 [project.optional-dependencies]

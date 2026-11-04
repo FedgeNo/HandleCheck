@@ -1,5 +1,6 @@
 import asyncio
 import re
+import sys
 from pathlib import Path
 
 import httpx
@@ -165,7 +166,8 @@ def test_bundled_sites_are_well_formed():
     for s in sites:
         assert s.profile_url.startswith("https://"), s.name
         assert "{username}" in s.profile_url, s.name
-        assert s.accepts(s.known_user), s.name
+        # Links never use their known user, and the lists don't always give one that fits.
+        assert s.manual or s.accepts(s.known_user), s.name
         re.compile(s.username_pattern)
         for regex in (s.found_regex, s.not_found_regex):
             if regex:
@@ -326,3 +328,24 @@ def test_reserved_names_only_apply_where_they_could_be_a_page(url, could):
     rule = Site(name="X", category="misc", profile_url=url, known_user="k", username_pattern=r"^[a-z]+$")
     result = checker_module._precheck(rule, "admin")
     assert (result is not None and result.reason == checker_module.REASON_RESERVED) is could
+
+
+def test_untested_rule_can_report_found_but_not_missing():
+    assert status_of(200, body="profile", found_regex="profile", unverified=True) is Status.FOUND
+    assert status_of(404, unverified=True) is Status.UNKNOWN
+    assert status_of(200, body="gone", not_found_regex="gone", unverified=True) is Status.UNKNOWN
+    assert status_of(200, body="nothing here", found_regex="profile", unverified=True) is Status.UNKNOWN
+
+
+def test_untested_rule_is_not_retried_after_a_clear_page():
+    rule = site(unverified=True)
+    answer = checker_module.Result(rule, "a", Status.UNKNOWN, URL, checker_module.REASON_UNVERIFIED)
+    assert not checker_module.worth_retrying(answer)
+
+
+def test_report_marks_untested_rules(capsys):
+    rule = site(unverified=True)
+    hit = checker_module.Result(rule, "a", Status.FOUND, URL)
+    cli.print_report("a", [hit], False, sys.stdout)
+    assert "(untested rule)" in capsys.readouterr().out
+    assert cli._as_dict(hit)["verified"] is False

@@ -47,7 +47,8 @@ def print_report(username: str, results: list[Result], show_all: bool, stream, s
     if found:
         print(paint("32;1", f"\n  Found on {len(found)}:"), file=stream)
         for r in found:
-            print(f"    {r.site.name:<{width}}  {r.url}", file=stream)
+            note = paint("2", "  (untested rule)") if r.site.unverified else ""
+            print(f"    {r.site.name:<{width}}  {r.url}{note}", file=stream)
     else:
         print("\n  Not found on any service that could be checked.", file=stream)
 
@@ -90,6 +91,7 @@ def _as_dict(result: Result) -> dict:
         "browser": result.via or None,
         "url": result.url,
         "reason": result.reason,
+        "verified": not result.site.unverified,
     }
 
 
