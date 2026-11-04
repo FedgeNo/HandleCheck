@@ -113,8 +113,7 @@ the browser, it goes under "check these yourself".
 ```sh
 cd ~/.local/lib/handlecheck/source
 WORK=${XDG_DATA_HOME:-$HOME/.local/share}/handlecheck
-SOURCES=$WORK/sources
-.venv/bin/python tools/build_candidates.py $SOURCES/wmn.json $SOURCES/sherlock.json $SOURCES/maigret.json "$WORK/candidates.json"
+.venv/bin/python tools/build_candidates.py sources/whatsmyname/wmn-data.json sources/sherlock/data.json sources/maigret/data.json "$WORK/candidates.json"
 .venv/bin/python tools/calibrate.py "$WORK/candidates.json" "$WORK/results.jsonl"   # resumes if restarted
 .venv/bin/python tools/merge_results.py "$WORK/results.jsonl"
 ```
@@ -127,10 +126,11 @@ left out. Adult sites are checked like any other, under the `adult` category, so
 `-s adult` selects them. An adult site that is also a dating site follows the
 dating rules.
 
-Sources: [WhatsMyName](https://github.com/WebBreacher/WhatsMyName) (CC BY-SA 4.0),
-[Sherlock](https://github.com/sherlock-project/sherlock) (MIT) and
-[Maigret](https://github.com/soxoj/maigret) (MIT). Site data merged from
-WhatsMyName stays under CC BY-SA 4.0.
+The lists are in [sources/](sources/README.md), with their licenses and the
+exact upstream versions: [WhatsMyName](https://github.com/WebBreacher/WhatsMyName)
+(CC BY-SA 4.0), [Sherlock](https://github.com/sherlock-project/sherlock) (MIT) and
+[Maigret](https://github.com/soxoj/maigret) (MIT). A site list built from WhatsMyName
+stays under CC BY-SA 4.0.
 
 ## Tests
 
@@ -142,5 +142,5 @@ The browser tests drive each installed browser against a local server.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Site data merged from WhatsMyName isn't part of this
-repository and stays under CC BY-SA 4.0.
+The code is MIT, see [LICENSE](LICENSE). The lists in [sources/](sources/README.md)
+keep their own licenses.

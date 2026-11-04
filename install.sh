@@ -41,7 +41,7 @@ if [ "$SOURCE" != "$APP" ]; then
     echo "Copying to $APP"
     mkdir -p "$APP"
     find "$APP" -mindepth 1 -maxdepth 1 ! -name .venv -exec rm -rf {} +
-    tar -C "$SOURCE" --exclude=./.venv --exclude=./data --exclude='*.egg-info' \
+    tar -C "$SOURCE" --exclude=./.venv --exclude='*.egg-info' \
         --exclude=__pycache__ --exclude=.pytest_cache -cf - . | tar -C "$APP" -xf -
 fi
 
@@ -51,12 +51,6 @@ echo "Setting up $APP/.venv with $PYTHON"
 "$APP/.venv/bin/python" -m pip install --quiet -e "$APP[dev]" 2>/dev/null
 mkdir -p "$BIN" "$DATA"
 ln -sfn "$APP/.venv/bin/handlecheck" "$BIN/handlecheck"
-
-# Site lists used to build the service list aren't part of the code.
-if [ -d "$SOURCE/data" ]; then
-    mkdir -p "$DATA/sources"
-    cp -R "$SOURCE/data/." "$DATA/sources/"
-fi
 
 if [ "$(id -u)" -eq 0 ]; then
     if ! id "$BROWSER_USER" >/dev/null 2>&1; then
