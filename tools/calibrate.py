@@ -6,6 +6,9 @@ Usage: calibrate.py CANDIDATES_JSON RESULTS_JSONL [--tabs N] [--workers N]
 A rule set passes if it rejects both fakes and finds at least one likely name.
 Results are appended to RESULTS_JSONL as they finish, and a restart resumes from
 what is there. APIs run first, then each browser in turn on what is left.
+
+Testing pauses while the network is down, and anything inconclusive during an
+outage is tested again, so an outage can't be mistaken for a site blocking us.
 """
 
 import argparse
@@ -23,6 +26,55 @@ from handlecheck.checker import DEAD_RE, Checker, Site, Status
 GENERIC_NAMES = ["john", "alex", "mike"]
 SITE_FIELDS = set(Site.__dataclass_fields__)
 BROKEN_SESSION = "browser connection closed"
+NETWORK_HOSTS = (("1.1.1.1", 443), ("8.8.8.8", 443))
+NETWORK_CACHE_SECONDS = 2
+NETWORK_RETRY_SECONDS = 10
+
+
+async def can_connect() -> bool:
+    for host, port in NETWORK_HOSTS:
+        try:
+            _, writer = await asyncio.wait_for(asyncio.open_connection(host, port), 5)
+        except (OSError, asyncio.TimeoutError):
+            continue
+        writer.close()
+        return True
+    return False
+
+
+class NetworkGate:
+    def __init__(self, probe=can_connect, retry_seconds: float = NETWORK_RETRY_SECONDS) -> None:
+        self.probe = probe
+        self.retry_seconds = retry_seconds
+        self.lock = asyncio.Lock()
+        self.checked_at = float("-inf")
+        self.up = True
+
+    async def is_up(self) -> bool:
+        async with self.lock:
+            if time.monotonic() - self.checked_at >= NETWORK_CACHE_SECONDS:
+                was_up = self.up
+                self.up = await self.probe()
+                self.checked_at = time.monotonic()
+                if self.up != was_up:
+                    print("network is back" if self.up else "network is down, pausing", flush=True)
+            return self.up
+
+    async def wait(self) -> None:
+        while not await self.is_up():
+            await asyncio.sleep(self.retry_seconds)
+
+    def guard(self, check):
+        """Wrap a check so that it waits out outages and discards their results."""
+
+        async def guarded(site: Site, name: str):
+            while True:
+                await self.wait()
+                result = await check(site, name)
+                if result.status is not Status.UNKNOWN or await self.is_up():
+                    return result
+
+        return guarded
 
 
 def make_site(entry: dict) -> Site:
@@ -124,6 +176,7 @@ async def run(candidates: dict, results_path: Path, tabs: int, workers: int) -> 
 
     usable = [make_site(entry) for rules in candidates.values() for entry in rules]
     started = time.monotonic()
+    gate = NetworkGate()
 
     async with Checker(usable, timeout=15, tabs=tabs, concurrency=workers) as checker:
         # Phase 1: anything with an API, with no browser open.
@@ -133,7 +186,7 @@ async def run(candidates: dict, results_path: Path, tabs: int, workers: int) -> 
 
         async def by_api(key: str, rules: list[dict]) -> None:
             async with limit:
-                record(key, "api", await attempt_rules(api_rules(rules), checker.check_api))
+                record(key, "api", await attempt_rules(api_rules(rules), gate.guard(checker.check_api)))
 
         await asyncio.gather(*(by_api(k, v) for k, v in api_todo))
         print(f"API done after {(time.monotonic() - started) / 60:.1f} min", flush=True)
@@ -169,7 +222,7 @@ async def run(candidates: dict, results_path: Path, tabs: int, workers: int) -> 
                 async def check(rule_site: Site, name: str):
                     return await checker.check_in_tab(rule_site, name, tab, label)
 
-                attempts = await attempt_rules(first_rules[key], check)
+                attempts = await attempt_rules(first_rules[key], gate.guard(check))
                 if BROKEN_SESSION not in json.dumps(attempts):
                     record(key, candidate.family, attempts)
                 return False

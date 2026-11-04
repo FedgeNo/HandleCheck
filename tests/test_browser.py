@@ -40,6 +40,12 @@ class Handler(BaseHTTPRequestHandler):
         pages = {
             "/alice": (200, "<title>Alice</title>"),
             "/login-page": (200, "<title>Log in</title>"),
+            # What Prototype.js does, which makes JSON.stringify encode arrays twice.
+            "/prototype/alice": (
+                200,
+                "<script>Array.prototype.toJSON=function(){return JSON.stringify(Array.from(this))}</script>"
+                "<title>alice</title>",
+            ),
             "/rendered/alice": (
                 200,
                 "<script>setTimeout(()=>{document.title='alice profile'},1500)</script>",
@@ -101,6 +107,10 @@ def test_missing_page(family, base_url):
 
 def test_error_status_with_empty_body(family, base_url):
     assert probe(family, base_url, "/empty404/{username}").status is Status.NOT_FOUND
+
+
+def test_page_that_changes_json_can_still_be_read(family, base_url):
+    assert probe(family, base_url, "/prototype/{username}").status is Status.FOUND
 
 
 def test_redirect_away_is_unknown(family, base_url):
@@ -315,6 +325,23 @@ def run_all(sites, username="alice", **kwargs):
             return await checker.check_all(username)
 
     return asyncio.run(go())
+
+
+def test_error_on_one_site_does_not_stop_the_others(monkeypatch, capsys):
+    statuses = {"A": 200}
+    fake_world(monkeypatch, statuses)
+    real = Checker.check_in_tab
+
+    async def explode_on_one(self, site, username, tab, label):
+        if site.name == "S1":
+            raise ValueError("odd page")
+        return await real(self, site, username, tab, label)
+
+    monkeypatch.setattr(Checker, "check_in_tab", explode_on_one)
+    results = {r.site.name: r.status for r in run_all(fake_sites(3))}
+    assert results["S1"] is Status.UNKNOWN
+    assert results["S0"] is Status.FOUND and results["S2"] is Status.FOUND
+    assert "S1" in capsys.readouterr().err
 
 
 def test_browser_restarts_every_30_tabs_and_never_overlaps(monkeypatch):

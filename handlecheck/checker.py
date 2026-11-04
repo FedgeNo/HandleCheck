@@ -10,6 +10,7 @@ import asyncio
 import json
 import re
 import secrets
+import sys
 from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
@@ -422,6 +423,10 @@ class Checker:
                 try:
                     if await work(site, tab, browser.label):
                         retests.append(site)
+                except Exception as exc:
+                    # One odd page must never end the run for every other site.
+                    print(f"handlecheck: {site.name}: {exc!r}", file=sys.stderr)
+                    retests.append(site)
                 finally:
                     if tab:
                         await tab.close()

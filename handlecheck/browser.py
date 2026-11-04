@@ -35,9 +35,11 @@ BROWSER_USER = "handlecheck-browser"
 STARTUP_TIMEOUT = 30.0
 CALL_TIMEOUT = 15.0
 MAX_HTML_CHARS = 2_000_000
+# Not JSON: pages can change how it behaves, as Prototype.js does for arrays.
+# A URL never contains a raw newline, so the first one ends it.
 SNAPSHOT_JS = (
-    "JSON.stringify([location.href, "
-    f"(document.documentElement?.outerHTML ?? '').slice(0, {MAX_HTML_CHARS})])"
+    "location.href + '\\n' + "
+    f"(document.documentElement?.outerHTML ?? '').slice(0, {MAX_HTML_CHARS})"
 )
 LOCK_TIMEOUT = 600.0
 # Never needed to tell whether an account exists, and slow to fetch and run.
@@ -125,6 +127,13 @@ class _Rpc:
         self._reader.cancel()
         await asyncio.gather(self._reader, return_exceptions=True)
         await self._ws.close()
+
+
+def _parse_snapshot(value: object) -> tuple[str, str]:
+    if not isinstance(value, str) or "\n" not in value:
+        raise BrowserError("could not read page")
+    final_url, body = value.split("\n", 1)
+    return final_url, body
 
 
 class Tab:
@@ -242,7 +251,7 @@ class _CdpTab(Tab):
         )
         if "exceptionDetails" in result:
             raise BrowserError("could not read page")
-        return tuple(json.loads(result["result"]["value"]))
+        return _parse_snapshot(result["result"].get("value"))
 
     async def close(self) -> None:
         self._browser._tabs.pop(self._session, None)
@@ -344,7 +353,7 @@ class _BidiTab(Tab):
             result = await self._evaluate_snapshot()
         if result.get("type") != "success":
             raise BrowserError("could not read page")
-        return tuple(json.loads(result["result"]["value"]))
+        return _parse_snapshot(result["result"].get("value"))
 
     async def _evaluate_snapshot(self) -> dict:
         return await self._browser._rpc.call(
